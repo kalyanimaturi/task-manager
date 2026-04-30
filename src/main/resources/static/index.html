@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Task Manager</title>
+
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    margin: 0;
+    padding: 30px;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+h1 {
+    text-align: center;
+}
+
+#status {
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Buttons */
+button {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.login-btn { background: #4CAF50; color: white; }
+.logout-btn { background: #f44336; color: white; }
+.add-btn { background: #2196F3; color: white; }
+
+/* Inputs */
+input, select {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+/* Dashboard */
+.dashboard {
+    display: flex;
+    justify-content: space-around;
+    margin: 15px 0;
+}
+
+.box {
+    padding: 10px 20px;
+    border-radius: 10px;
+    color: white;
+    font-weight: bold;
+}
+
+.total { background: #3f51b5; }
+.pending { background: #ff9800; }
+.done { background: #4caf50; }
+
+/* Task list */
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    background: #f9f9f9;
+    margin: 8px 0;
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.done-text {
+    text-decoration: line-through;
+    color: gray;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Task Manager</h1>
+
+<p id="status">Not logged in ❌</p>
+
+<div style="text-align:center;">
+    <button class="login-btn" onclick="loginUser()">Login</button>
+    <button class="logout-btn" onclick="logoutUser()">Logout</button>
+</div>
+
+<div class="dashboard">
+    <div class="box total">Total: <span id="total">0</span></div>
+    <div class="box pending">Pending: <span id="pending">0</span></div>
+    <div class="box done">Done: <span id="done">0</span></div>
+</div>
+
+<input id="projectName" placeholder="Project name">
+<button onclick="createProject()">Create Project</button>
+
+<br><br>
+
+<select id="projectSelect" onchange="changeProject()"></select>
+
+<br><br>
+
+<input id="taskInput" placeholder="Enter task">
+<button class="add-btn" onclick="addTask()">Add</button>
+
+<ul id="taskList"></ul>
+
+</div>
+
+<script>
+
+const BASE_URL = "http://localhost:8081";
+const TASK_API = BASE_URL + "/tasks";
+const PROJECT_API = BASE_URL + "/projects";
+
+let selectedProjectId = "";
+
+// UI
+function updateUI() {
+    const token = localStorage.getItem("token");
+    document.getElementById("status").innerText =
+        token ? "Logged in as admin ✅" : "Not logged in ❌";
+}
+
+// LOGIN
+function loginUser() {
+    fetch(BASE_URL + "/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "123" })
+    })
+    .then(res => res.text())
+    .then(token => {
+        localStorage.setItem("token", token);
+        updateUI();
+        loadProjects();
+        loadDashboard();
+    });
+}
+
+// LOGOUT
+function logoutUser() {
+    localStorage.removeItem("token");
+    updateUI();
+}
+
+// HEADERS
+function getHeaders() {
+    return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + localStorage.getItem("token")
+    };
+}
+
+// LOAD PROJECTS
+async function loadProjects() {
+    const res = await fetch(PROJECT_API, { headers: getHeaders() });
+    const data = await res.json();
+
+    const select = document.getElementById("projectSelect");
+    select.innerHTML = "";
+
+    data.forEach(p => {
+        if (p.name) {
+            const option = document.createElement("option");
+            option.value = p.id;
+            option.textContent = p.name;
+            select.appendChild(option);
+        }
+    });
+
+    if (data.length > 0) {
+        selectedProjectId = data[0].id;
+        loadTasks();
+    }
+}
+
+// CHANGE PROJECT
+function changeProject() {
+    selectedProjectId = document.getElementById("projectSelect").value;
+    loadTasks();
+}
+
+// CREATE PROJECT
+async function createProject() {
+    const name = document.getElementById("projectName").value;
+
+    if (!name) return alert("Enter project name");
+
+    await fetch(PROJECT_API, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+            name: name,
+            owner: "admin"
+        })
+    });
+
+    document.getElementById("projectName").value = "";
+    loadProjects();
+}
+
+// ADD TASK
+function addTask() {
+    const title = document.getElementById("taskInput").value;
+
+    if (!title) return alert("Enter task");
+
+    fetch(TASK_API, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+            title: title,
+            assignedTo: "admin",
+            status: "PENDING",
+            projectId: selectedProjectId
+        })
+    }).then(() => {
+        document.getElementById("taskInput").value = "";
+        loadTasks();
+        loadDashboard();
+    });
+}
+
+// LOAD TASKS
+function loadTasks() {
+    if (!selectedProjectId) return;
+
+    fetch(TASK_API + "/project/" + selectedProjectId, {
+        headers: getHeaders()
+    })
+    .then(res => res.json())
+    .then(data => {
+        const list = document.getElementById("taskList");
+        list.innerHTML = "";
+
+        data.forEach(t => {
+            const li = document.createElement("li");
+
+            li.innerHTML = `
+                <span class="${t.status === 'DONE' ? 'done-text' : ''}">
+                    ${t.title}
+                </span>
+                <div>
+                    <button onclick="markDone('${t.id}')">✔</button>
+                    <button onclick="deleteTask('${t.id}')">🗑</button>
+                </div>
+            `;
+
+            list.appendChild(li);
+        });
+    });
+}
+
+// MARK DONE
+function markDone(id) {
+    fetch(TASK_API + "/" + id + "?role=ADMIN", {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({ status: "DONE" })
+    }).then(() => {
+        loadTasks();
+        loadDashboard();
+    });
+}
+
+// DELETE
+function deleteTask(id) {
+    fetch(TASK_API + "/" + id + "?role=ADMIN", {
+        method: "DELETE",
+        headers: getHeaders()
+    }).then(() => {
+        loadTasks();
+        loadDashboard();
+    });
+}
+
+// DASHBOARD
+function loadDashboard() {
+    fetch(TASK_API + "/dashboard", {
+        headers: getHeaders()
+    })
+    .then(res => res.json())
+    .then(d => {
+        document.getElementById("total").innerText = d.total;
+        document.getElementById("pending").innerText = d.pending;
+        document.getElementById("done").innerText = d.done;
+    });
+}
+
+// INIT
+updateUI();
+
+</script>
+
+</body>
+</html>
