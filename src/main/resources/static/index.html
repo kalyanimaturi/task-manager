@@ -128,7 +128,9 @@ li {
 
 <script>
 
-const TASK_API = "https://task-manager-production-a237.up.railway.app";
+const BASE_URL = "https://task-manager-production-a237.up.railway.app";
+const PROJECT_API = BASE_URL + "/projects";
+const TASK_API = BASE_URL + "/tasks";
 
 let selectedProjectId = "";
 
@@ -143,15 +145,19 @@ function updateUI() {
 function loginUser() {
     fetch(BASE_URL + "/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "admin", password: "123" })
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            username: "admin",
+            password: "admin123"
+        })
     })
     .then(res => res.text())
     .then(token => {
         localStorage.setItem("token", token);
         updateUI();
         loadProjects();
-        loadDashboard();
     });
 }
 
